@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>午餐選擇機</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <header class="hero">
+      <h1>午餐選擇機</h1>
+      <p>從午餐輪盤中隨機選一個，或者新增你自己的午餐選項。</p>
+    </header>
+
+    <section class="card wheel-card">
+      <div class="wheel-frame">
+        <div class="pointer"></div>
+        <svg id="wheel" viewBox="0 0 200 200" aria-hidden="true"></svg>
+      </div>
+
+      <div class="wheel-info">
+        <p class="label">目前選擇</p>
+        <div class="selected" id="selectedLunch">還沒有轉動輪盤</div>
+        <button id="spinButton">開始轉一轉</button>
+        <p class="hint">共有 <span id="lunchCount">0</span> 個午餐選項</p>
+      </div>
+    </section>
+
+    <section class="card add-card">
+      <h2>新增午餐</h2>
+      <label for="newLunch">午餐名稱</label>
+      <input id="newLunch" type="text" placeholder="例如：鐵板牛排、拉麵、便當...">
+      <button id="addButton">加入午餐選項</button>
+      <div class="message" id="messageBox"></div>
+    </section>
+
+    <section class="card list-card">
+      <h2>午餐清單</h2>
+      <ul id="lunchList"></ul>
+    </section>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
