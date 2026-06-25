@@ -32,7 +32,7 @@ const newLunchEnglishInput = document.getElementById('newLunchEnglish');
 const messageBox = document.getElementById('messageBox');
 const syncStatus = document.getElementById('syncStatus');
 
-const GOOGLE_SHEETS_WEBAPP_URL = ''; // 將此處改成你的 Google Apps Script Web App URL
+const GOOGLE_SHEETS_WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbydnfp6WYmsdBKyKwrDEd-Glm6kPLby6oDxOndbfQKiYxzYN8se9PQA-4tfbLnYZC9bMA/exec';
 
 let lunches = [...defaultLunches];
 let isSpinning = false;
@@ -160,19 +160,23 @@ async function translateChineseToEnglish(text) {
   return text;
 }
 
-function postToSheet(payload) {
+async function postToSheet(payload) {
   if (!GOOGLE_SHEETS_WEBAPP_URL) {
     setSyncStatus('尚未設定 Google 試算表 Web App URL。', 'warning');
-    return Promise.resolve(null);
+    return null;
   }
 
-  return fetch(GOOGLE_SHEETS_WEBAPP_URL, {
+  const response = await fetch(GOOGLE_SHEETS_WEBAPP_URL, {
     method: 'POST',
     body: JSON.stringify(payload),
-    headers: {
-      'Content-Type': 'application/json',
-    },
-  }).then((response) => response.json());
+  });
+
+  if (!response.ok) {
+    const bodyText = await response.text();
+    throw new Error(`HTTP ${response.status} ${response.statusText}: ${bodyText}`);
+  }
+
+  return response.json();
 }
 
 function setSyncStatus(text, type = 'info') {
@@ -181,21 +185,74 @@ function setSyncStatus(text, type = 'info') {
   syncStatus.style.color = type === 'warning' ? 'var(--warning)' : '#334155';
 }
 
+async function fetchSheetLunches() {
+  if (!GOOGLE_SHEETS_WEBAPP_URL) return [];
+  setSyncStatus('正在從 Google 試算表讀取午餐資料...');
+
+  try {
+    const result = await postToSheet({ action: 'fetch' });
+    if (result && result.success && Array.isArray(result.rows)) {
+      return result.rows;
+    }
+    setSyncStatus('無法讀取 Google 試算表資料，請檢查 Web App。', 'warning');
+  } catch (error) {
+    console.error('Sheet fetch failed', error);
+    setSyncStatus(`無法連線到 Google 試算表：${error.message}`.slice(0, 160), 'warning');
+  }
+  return [];
+}
+
+function normalizeSheetRows(rows) {
+  return rows
+    .map((row) => {
+      if (!Array.isArray(row)) return null;
+      const name = String(row[0] || '').trim();
+      const english = String(row[1] || '').trim();
+      if (!name) return null;
+      if (name.toLowerCase().includes('name') && english.toLowerCase().includes('english')) return null;
+      return { name, english: english || name };
+    })
+    .filter(Boolean);
+}
+
+function mergeLunches(sheetItems) {
+  const merged = new Map();
+  lunches.forEach((item) => {
+    merged.set(item.name, item);
+  });
+  sheetItems.forEach((item) => {
+    if (!merged.has(item.name)) {
+      merged.set(item.name, item);
+    }
+  });
+  return Array.from(merged.values());
+}
+
 async function syncSheetData() {
   if (!GOOGLE_SHEETS_WEBAPP_URL) return;
-  setSyncStatus('正在同步目前午餐資料到 Google 試算表...');
+  const sheetRows = await fetchSheetLunches();
+  const sheetItems = normalizeSheetRows(sheetRows);
+  const combined = mergeLunches(sheetItems);
+
+  const needUpdateLocal = combined.length !== lunches.length || combined.some((item, index) => lunches[index]?.name !== item.name || lunches[index]?.english !== item.english);
+  if (needUpdateLocal) {
+    lunches = combined;
+    renderWheel();
+    renderList();
+    setSyncStatus('已從 Google 試算表同步新午餐到本機。');
+  }
 
   const rows = lunches.map((item) => [item.name, item.english]);
   try {
     const result = await postToSheet({ action: 'replace', rows });
     if (result && result.success) {
-      setSyncStatus('已將目前午餐資料儲存到 Google 試算表。');
+      setSyncStatus('已同步本機與 Google 試算表資料。');
     } else {
       setSyncStatus('Google 試算表同步失敗，請檢查 Web App 設定。', 'warning');
     }
   } catch (error) {
-    console.warn('Sheet sync failed', error);
-    setSyncStatus('無法連線到 Google 試算表。', 'warning');
+    console.error('Sheet sync failed', error);
+    setSyncStatus(`無法連線到 Google 試算表：${error.message}`.slice(0, 160), 'warning');
   }
 }
 
@@ -211,8 +268,8 @@ async function appendLunchToSheet(item) {
       setSyncStatus('新增午餐同步失敗，請檢查 Web App 設定。', 'warning');
     }
   } catch (error) {
-    console.warn('Sheet append failed', error);
-    setSyncStatus('無法連線到 Google 試算表。', 'warning');
+    console.error('Sheet append failed', error);
+    setSyncStatus(`無法連線到 Google 試算表：${error.message}`.slice(0, 160), 'warning');
   }
 }
 
