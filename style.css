@@ -98,7 +98,7 @@ body {
   border-left: 16px solid transparent;
   border-right: 16px solid transparent;
   border-bottom: 32px solid #ef4444;
-  transform: translateX(-50%);
+  transform: translateX(-50%) rotate(180deg);
   z-index: 2;
 }
 
@@ -184,6 +184,12 @@ button:disabled {
 .message {
   min-height: 2rem;
   color: var(--success);
+}
+
+.sync-status {
+  min-height: 1.4rem;
+  color: #334155;
+  font-size: 0.95rem;
 }
 
 .list-card ul {

@@ -1,24 +1,24 @@
 const defaultLunches = [
-  '鹽酥雞便當',
-  '滷肉飯',
-  '炸醬麵',
-  '牛肉麵',
-  '烤雞沙拉',
-  '日式豬排飯',
-  '韓式石鍋拌飯',
-  '義大利麵',
-  '雞腿便當',
-  '關東煮',
-  '牛丼',
-  '生魚片飯',
-  '壽司組合',
-  '三明治',
-  '咖哩飯',
-  '牛奶鍋',
-  '燒臘飯',
-  '炒飯',
-  '蔥抓餅',
-  '番茄義大利麵'
+  { name: '鹽酥雞便當', english: 'Salted Crispy Chicken Bento' },
+  { name: '滷肉飯', english: 'Braised Pork Rice' },
+  { name: '炸醬麵', english: 'Zhajiang Noodles' },
+  { name: '牛肉麵', english: 'Beef Noodle Soup' },
+  { name: '烤雞沙拉', english: 'Grilled Chicken Salad' },
+  { name: '日式豬排飯', english: 'Japanese Pork Cutlet Rice' },
+  { name: '韓式石鍋拌飯', english: 'Korean Bibimbap' },
+  { name: '義大利麵', english: 'Pasta' },
+  { name: '雞腿便當', english: 'Chicken Leg Bento' },
+  { name: '關東煮', english: 'Oden' },
+  { name: '牛丼', english: 'Gyudon' },
+  { name: '生魚片飯', english: 'Sashimi Rice Bowl' },
+  { name: '壽司組合', english: 'Sushi Set' },
+  { name: '三明治', english: 'Sandwich' },
+  { name: '咖哩飯', english: 'Curry Rice' },
+  { name: '牛奶鍋', english: 'Milk Hot Pot' },
+  { name: '燒臘飯', english: 'Roast Meat Rice' },
+  { name: '炒飯', english: 'Fried Rice' },
+  { name: '蔥抓餅', english: 'Scallion Pancake' },
+  { name: '番茄義大利麵', english: 'Tomato Pasta' }
 ];
 
 const wheel = document.getElementById('wheel');
@@ -28,7 +28,11 @@ const lunchList = document.getElementById('lunchList');
 const lunchCount = document.getElementById('lunchCount');
 const addButton = document.getElementById('addButton');
 const newLunchInput = document.getElementById('newLunch');
+const newLunchEnglishInput = document.getElementById('newLunchEnglish');
 const messageBox = document.getElementById('messageBox');
+const syncStatus = document.getElementById('syncStatus');
+
+const GOOGLE_SHEETS_WEBAPP_URL = ''; // 將此處改成你的 Google Apps Script Web App URL
 
 let lunches = [...defaultLunches];
 let isSpinning = false;
@@ -81,9 +85,10 @@ function renderWheel() {
     text.setAttribute('y', labelPos.y.toString());
     text.setAttribute('text-anchor', 'middle');
     text.setAttribute('dominant-baseline', 'middle');
-    text.setAttribute('font-size', '6');
+    text.setAttribute('font-size', '8');
+    text.setAttribute('fill', '#0f172a');
     text.setAttribute('transform', `rotate(${midAngle}, ${labelPos.x}, ${labelPos.y})`);
-    text.textContent = item;
+    text.textContent = (index + 1).toString();
     wheel.appendChild(text);
   });
 
@@ -101,7 +106,7 @@ function renderList() {
   lunchList.innerHTML = '';
   lunches.forEach((item) => {
     const li = document.createElement('li');
-    li.textContent = item;
+    li.textContent = `${item.name} - ${item.english}`;
     lunchList.appendChild(li);
   });
   lunchCount.textContent = lunches.length;
@@ -112,6 +117,103 @@ function getRotationForIndex(index) {
   const baseAngle = 360 - index * segmentAngle - segmentAngle / 2;
   const spins = 5;
   return currentRotation + spins * 360 + baseAngle;
+}
+
+async function translateChineseToEnglish(text) {
+  const fallback = {
+    '鹽酥雞便當': 'Salted Crispy Chicken Bento',
+    '滷肉飯': 'Braised Pork Rice',
+    '炸醬麵': 'Zhajiang Noodles',
+    '牛肉麵': 'Beef Noodle Soup',
+    '烤雞沙拉': 'Grilled Chicken Salad',
+    '日式豬排飯': 'Japanese Pork Cutlet Rice',
+    '韓式石鍋拌飯': 'Korean Bibimbap',
+    '義大利麵': 'Pasta',
+    '雞腿便當': 'Chicken Leg Bento',
+    '關東煮': 'Oden',
+    '牛丼': 'Gyudon',
+    '生魚片飯': 'Sashimi Rice Bowl',
+    '壽司組合': 'Sushi Set',
+    '三明治': 'Sandwich',
+    '咖哩飯': 'Curry Rice',
+    '牛奶鍋': 'Milk Hot Pot',
+    '燒臘飯': 'Roast Meat Rice',
+    '炒飯': 'Fried Rice',
+    '蔥抓餅': 'Scallion Pancake',
+    '番茄義大利麵': 'Tomato Pasta'
+  };
+
+  if (fallback[text]) {
+    return fallback[text];
+  }
+
+  try {
+    const response = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=zh|en`);
+    const json = await response.json();
+    if (json && json.responseData && json.responseData.translatedText) {
+      return json.responseData.translatedText;
+    }
+  } catch (error) {
+    console.warn('Translation API failed:', error);
+  }
+
+  return text;
+}
+
+function postToSheet(payload) {
+  if (!GOOGLE_SHEETS_WEBAPP_URL) {
+    setSyncStatus('尚未設定 Google 試算表 Web App URL。', 'warning');
+    return Promise.resolve(null);
+  }
+
+  return fetch(GOOGLE_SHEETS_WEBAPP_URL, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  }).then((response) => response.json());
+}
+
+function setSyncStatus(text, type = 'info') {
+  if (!syncStatus) return;
+  syncStatus.textContent = text;
+  syncStatus.style.color = type === 'warning' ? 'var(--warning)' : '#334155';
+}
+
+async function syncSheetData() {
+  if (!GOOGLE_SHEETS_WEBAPP_URL) return;
+  setSyncStatus('正在同步目前午餐資料到 Google 試算表...');
+
+  const rows = lunches.map((item) => [item.name, item.english]);
+  try {
+    const result = await postToSheet({ action: 'replace', rows });
+    if (result && result.success) {
+      setSyncStatus('已將目前午餐資料儲存到 Google 試算表。');
+    } else {
+      setSyncStatus('Google 試算表同步失敗，請檢查 Web App 設定。', 'warning');
+    }
+  } catch (error) {
+    console.warn('Sheet sync failed', error);
+    setSyncStatus('無法連線到 Google 試算表。', 'warning');
+  }
+}
+
+async function appendLunchToSheet(item) {
+  if (!GOOGLE_SHEETS_WEBAPP_URL) return;
+  setSyncStatus('正在將新午餐儲存到 Google 試算表...');
+
+  try {
+    const result = await postToSheet({ action: 'append', rows: [[item.name, item.english]] });
+    if (result && result.success) {
+      setSyncStatus('已將新午餐儲存到 Google 試算表。');
+    } else {
+      setSyncStatus('新增午餐同步失敗，請檢查 Web App 設定。', 'warning');
+    }
+  } catch (error) {
+    console.warn('Sheet append failed', error);
+    setSyncStatus('無法連線到 Google 試算表。', 'warning');
+  }
 }
 
 function getRandomIndex() {
@@ -133,35 +235,50 @@ spinButton.addEventListener('click', () => {
   const chosenIndex = getRandomIndex();
   const targetRotation = getRotationForIndex(chosenIndex);
 
-  wheel.style.transition = 'transform 4s cubic-bezier(0.22, 1, 0.36, 1)';
+  const speed = Math.floor(Math.random() * (200 - 30 + 1)) + 30; // degrees per second
+  const totalDegrees = targetRotation - currentRotation;
+  const duration = Math.max(1, totalDegrees / speed);
+
+  wheel.style.transition = `transform ${duration}s cubic-bezier(0.22, 1, 0.36, 1)`;
   wheel.style.transform = `rotate(${targetRotation}deg)`;
 
   const selectedItem = lunches[chosenIndex];
+  const selectedNumber = chosenIndex + 1;
   selectedLunch.textContent = '轉盤正在轉動...';
   messageBox.textContent = '';
 
   wheel.addEventListener('transitionend', function handleTransition() {
     wheel.removeEventListener('transitionend', handleTransition);
     currentRotation = targetRotation % 360;
-    selectedLunch.textContent = selectedItem;
+    selectedLunch.textContent = `第 ${selectedNumber} 號：${selectedItem.name} / ${selectedItem.english}`;
     isSpinning = false;
     spinButton.disabled = false;
-    showMessage(`午餐選好了：${selectedItem}`);
+    showMessage(`午餐選好了：第 ${selectedNumber} 號 - ${selectedItem.name} / ${selectedItem.english}`);
   });
 });
 
-addButton.addEventListener('click', () => {
+addButton.addEventListener('click', async () => {
   const value = newLunchInput.value.trim();
+  const englishValue = newLunchEnglishInput.value.trim();
   if (!value) {
     showMessage('請輸入午餐名稱。', 'warning');
     return;
   }
 
-  lunches.push(value);
+  addButton.disabled = true;
+  showMessage('正在取得英文翻譯...', 'success');
+
+  const english = englishValue || await translateChineseToEnglish(value);
+  const newItem = { name: value, english };
+
+  lunches.push(newItem);
   newLunchInput.value = '';
+  newLunchEnglishInput.value = '';
   renderWheel();
   renderList();
-  showMessage(`已加入：${value}`);
+  showMessage(`已加入：${newItem.name} / ${newItem.english}`);
+  await appendLunchToSheet(newItem);
+  addButton.disabled = false;
 });
 
 newLunchInput.addEventListener('keydown', (event) => {
@@ -172,3 +289,4 @@ newLunchInput.addEventListener('keydown', (event) => {
 
 renderWheel();
 renderList();
+syncSheetData();
